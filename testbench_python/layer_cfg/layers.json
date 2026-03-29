@@ -1,0 +1,13 @@
+{
+  "Defaults": {},
+    "FMPadding_0": {
+    "preferred_impl_style": "rtl"
+  },
+    "ConvolutionInputGenerator_0": {
+    "preferred_impl_style": "rtl"
+  },
+    "MVAU_0": {
+    "preferred_impl_style": "rtl",
+    "quantization_scheme": "pow2"
+  }
+}
