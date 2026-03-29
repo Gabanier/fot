@@ -92,7 +92,7 @@ class MVAU_rtl(MVAU, RTLBackend):
                     )
 
                 if in_ind == 1:
-                    if dynamic_input:
+                    if dynamic_input or self.get_nodeattr("mlo_max_iter"):
                         reshaped_input = context[inputs].reshape(-1, context[inputs].shape[-1])
                         self.make_weight_file(
                             reshaped_input, "decoupled_npy", "{}/input_1.npy".format(code_gen_dir)
@@ -102,8 +102,11 @@ class MVAU_rtl(MVAU, RTLBackend):
             nbits = self.get_instream_width()
             inp = npy_to_rtlsim_input("{}/input_0.npy".format(code_gen_dir), export_idt, nbits)
             super().reset_rtlsim(sim)
-
-            if dynamic_input or mem_mode in ["external", "internal_decoupled"]:
+            if (
+                dynamic_input
+                or mem_mode in ["external", "internal_decoupled"]
+                or self.get_nodeattr("mlo_max_iter")
+            ):
                 wnbits = self.get_instream_width(1)
                 if dynamic_input:
                     wnbits = wnbits * self.get_nodeattr("SIMD")
@@ -181,7 +184,7 @@ class MVAU_rtl(MVAU, RTLBackend):
         for f in sourcefiles:
             cmd.append("add_files -norecurse %s" % (f))
         mem_mode = self.get_nodeattr("mem_mode")
-        if mem_mode == "internal_decoupled":
+        if mem_mode == "internal_decoupled" or self.get_nodeattr("mlo_max_iter"):
             cmd.append(
                 "create_bd_cell -type hier -reference %s /%s/%s"
                 % (
@@ -272,14 +275,19 @@ class MVAU_rtl(MVAU, RTLBackend):
     def generate_hdl(self, model, fpgapart, clk):
         # Generate params as part of IP preparation
         code_gen_dir = self.get_nodeattr("code_gen_dir_ipgen")
-        self.generate_params(model, code_gen_dir)
+        if not self.get_nodeattr("mlo_max_iter"):
+            self.generate_params(model, code_gen_dir)
 
         template_path, code_gen_dict = self.prepare_codegen_default(fpgapart, clk)
         # determine if weights are narrow range and add parameter to code gen dict
         weights = model.get_initializer(self.onnx_node.input[1])
         wdt = self.get_input_datatype(1)
         narrow_weights = (
-            0 if np.min(weights) == wdt.min() or self.get_nodeattr("dynamic_input") else 1
+            0
+            if np.min(weights) == wdt.min()
+            or self.get_nodeattr("dynamic_input")
+            or (self.get_nodeattr("mlo_max_iter") > 1)
+            else 1
         )
         code_gen_dict["$NARROW_WEIGHTS$"] = str(narrow_weights)
         # add general parameters to dictionary
@@ -299,19 +307,14 @@ class MVAU_rtl(MVAU, RTLBackend):
             os.path.join(code_gen_dir, self.get_nodeattr("gen_top_module") + "_wrapper.v"),
             "w",
         ) as f:
-            f.write(template_wrapper.replace("$FORCE_BEHAVIORAL$", str(0)))
-        with open(
-            os.path.join(code_gen_dir, self.get_nodeattr("gen_top_module") + "_wrapper_sim.v"),
-            "w",
-        ) as f:
-            f.write(template_wrapper.replace("$FORCE_BEHAVIORAL$", str(1)))
+            f.write(template_wrapper)
 
         dynamic_input = self.get_nodeattr("dynamic_input")
         mem_mode = self.get_nodeattr("mem_mode")
 
         if dynamic_input:
             self.generate_hdl_dynload()
-        elif mem_mode == "internal_decoupled":
+        elif mem_mode == "internal_decoupled" and not self.get_nodeattr("mlo_max_iter"):
             if self.get_nodeattr("ram_style") == "ultra" and not is_versal(fpgapart):
                 runtime_writeable = self.get_nodeattr("runtime_writeable_weights")
                 assert (
@@ -319,7 +322,8 @@ class MVAU_rtl(MVAU, RTLBackend):
                 ), """Layer with URAM weights must have runtime_writeable_weights=1
                     if Ultrascale device is targeted."""
             self.generate_hdl_memstream(fpgapart, pumped_memory=self.get_nodeattr("pumpedMemory"))
-
+        elif self.get_nodeattr("mlo_max_iter"):
+            self.generate_hdl_fetch_weights(fpgapart)
         # set ipgen_path and ip_path so that HLS-Synth transformation
         # and stich_ip transformation do not complain
         self.set_nodeattr("ipgen_path", code_gen_dir)
