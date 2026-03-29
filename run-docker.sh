@@ -79,7 +79,7 @@ SCRIPTPATH=$(dirname "$SCRIPT")
 : ${FINN_SSH_KEY_DIR="$SCRIPTPATH/ssh_keys"}
 : ${PLATFORM_REPO_PATHS="/opt/xilinx/platforms"}
 : ${XRT_DEB_VERSION="xrt_202220.2.14.354_22.04-amd64-xrt"}
-: ${FINN_HOST_BUILD_DIR="/tmp/$DOCKER_INST_NAME"}
+: ${FINN_HOST_BUILD_DIR="/mnt/sda1/mgr/finn_build_dir"}
 : ${FINN_DOCKER_TAG="xilinx/finn:$(OLD_PWD=$(pwd); cd $SCRIPTPATH; git describe --always --tags --dirty; cd $OLD_PWD).$XRT_DEB_VERSION"}
 : ${FINN_DOCKER_PREBUILT="0"}
 : ${FINN_DOCKER_RUN_AS_ROOT="0"}
@@ -94,6 +94,10 @@ SCRIPTPATH=$(dirname "$SCRIPT")
 : ${FINN_SKIP_XRT_DOWNLOAD=""}
 : ${FINN_XRT_PATH=""}
 : ${FINN_DOCKER_NO_CACHE="0"}
+
+: ${FINN_XILINX_PATH=="/mnt/sda1/Xilinx/"}
+: ${FINN_XILINX_VERSION="2024.2"}
+# : ${VITIS_PATH="/mnt/sda1/Xilinx/Vitis/2024.2"}
 
 DOCKER_INTERACTIVE=""
 
@@ -176,17 +180,7 @@ if [ "$FINN_DOCKER_PREBUILT" = "0" ] && [ -z "$FINN_SINGULARITY" ]; then
   # Need to ensure this is done within the finn/ root folder:
   OLD_PWD=$(pwd)
   cd $SCRIPTPATH
-  docker build \
-    -f docker/Dockerfile.finn \
-    --build-arg XRT_DEB_VERSION=$XRT_DEB_VERSION \
-    --build-arg SKIP_XRT=$FINN_SKIP_XRT_DOWNLOAD \
-    --build-arg LOCAL_XRT=$LOCAL_XRT \
-    --tag=$FINN_DOCKER_TAG $FINN_DOCKER_BUILD_EXTRA \
-    --build-arg GROUP_ID=$DOCKER_GID \
-    --build-arg GROUPNAME=$DOCKER_GNAME \
-    --build-arg USERNAME=$DOCKER_UNAME \
-    --build-arg USER_UID=$DOCKER_UID \
-    .
+  docker build -f docker/Dockerfile.finn --build-arg XRT_DEB_VERSION=$XRT_DEB_VERSION --build-arg SKIP_XRT=$FINN_SKIP_XRT_DOWNLOAD --build-arg LOCAL_XRT=$LOCAL_XRT --tag=$FINN_DOCKER_TAG $FINN_DOCKER_BUILD_EXTRA .
   cd $OLD_PWD
 fi
 
@@ -215,6 +209,10 @@ DOCKER_EXEC+="-e LD_PRELOAD=/lib/x86_64-linux-gnu/libudev.so.1 "
 # https://adaptivesupport.amd.com/s/article/63253?language=en_US
 DOCKER_EXEC+="-e XILINX_LOCAL_USER_DATA=no "
 if [ "$FINN_DOCKER_RUN_AS_ROOT" = "0" ] && [ -z "$FINN_SINGULARITY" ];then
+  DOCKER_EXEC+="-v /etc/group:/etc/group:ro "
+  DOCKER_EXEC+="-v /etc/passwd:/etc/passwd:ro "
+  DOCKER_EXEC+="-v /etc/shadow:/etc/shadow:ro "
+  DOCKER_EXEC+="-v /etc/sudoers.d:/etc/sudoers.d:ro "
   DOCKER_EXEC+="-v $FINN_SSH_KEY_DIR:$HOME/.ssh "
   DOCKER_EXEC+="--user $DOCKER_UID:$DOCKER_GID "
 else
@@ -233,7 +231,7 @@ if [ ! -z "$FINN_XILINX_PATH" ];then
     year=$((10#$year))
     minor=$((10#$minor))
 
-    if (( year > 24 )) || { (( year == 24 )) && (( minor > 2 )); }; then
+    if (( year > 25 )) || { (( year == 25 )) && (( minor > 2 )); }; then
       VIVADO_PATH="$FINN_XILINX_PATH/$FINN_XILINX_VERSION/Vivado"
       VITIS_PATH="$FINN_XILINX_PATH/$FINN_XILINX_VERSION/Vitis"
       HLS_PATH="$FINN_XILINX_PATH/$FINN_XILINX_VERSION/Vitis"
@@ -241,6 +239,12 @@ if [ ! -z "$FINN_XILINX_PATH" ];then
       VIVADO_PATH="$FINN_XILINX_PATH/Vivado/$FINN_XILINX_VERSION"
       VITIS_PATH="$FINN_XILINX_PATH/Vitis/$FINN_XILINX_VERSION"
       HLS_PATH="$FINN_XILINX_PATH/Vitis_HLS/$FINN_XILINX_VERSION"
+      VIVADO_PATH="$FINN_XILINX_PATH/Vivado/2024.2"
+      VITIS_PATH="$FINN_XILINX_PATH/Vitis/2024.2"
+      HLS_PATH="$FINN_XILINX_PATH/Vitis_HLS/2024.2"
+      echo $VIVADO_PATH
+      echo $FINN_XILINX_VERSION
+
     fi
   else
     echo "FINN_XILINX_VERSION ($FINN_XILINX_VERSION) is not in the correct format (YYYY.1 or YYYY.2)"
