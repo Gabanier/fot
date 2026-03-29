@@ -533,6 +533,7 @@ class MVAU(HWCustomOp):
             or self.get_nodeattr("mem_mode") == "external"
             or self.get_nodeattr("mlo_max_iter")
             or self.get_nodeattr("dynamic_input")
+            or self.get_nodeattr("quantization_scheme") == "pow2" 
         ):
             weights = model.get_initializer(self.onnx_node.input[1])
             w_min = weights.min()

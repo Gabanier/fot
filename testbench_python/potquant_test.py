@@ -98,9 +98,9 @@ IN_CH = 1
 OUT_CH = 3
 K_SIZE = 1
 BITW = 32
-OUT_DATA_DIR = "python_files/data"
-OUT_MDL_DIR = "python_files/model"
-LYR_CFG_DIR = "python_files/layer_cfg"
+OUT_DATA_DIR = "testbench_python/data"
+OUT_MDL_DIR = "testbench_python/model"
+LYR_CFG_DIR = "testbench_python/layer_cfg"
 
 
 from brevitas.quant.scaled_int import Int8WeightPerTensorFloat
@@ -213,6 +213,7 @@ def build_prehack():
         "step_streamline",
         "step_convert_to_hw",
         "step_specialize_layers",
+        "step_transpose_decomposition",
         step_unique_names,
         "step_create_dataflow_partition",
         "step_minimize_bit_width",
@@ -270,6 +271,7 @@ def build_posthack():
         steps=build_steps_posthack,
         generate_outputs=[
             build_cfg.DataflowOutputType.ESTIMATE_REPORTS,
+            build_cfg.DataflowOutputType.STITCHED_IP,
             build_cfg.DataflowOutputType.BITFILE,
             build_cfg.DataflowOutputType.PYNQ_DRIVER,
             build_cfg.DataflowOutputType.DEPLOYMENT_PACKAGE,
