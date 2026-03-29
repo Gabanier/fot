@@ -95,7 +95,7 @@ SCRIPTPATH=$(dirname "$SCRIPT")
 : ${FINN_XRT_PATH=""}
 : ${FINN_DOCKER_NO_CACHE="0"}
 
-: ${FINN_XILINX_PATH=="/mnt/sda1/Xilinx/"}
+: ${FINN_XILINX_PATH=="/mnt/sda1/Xilinx"}
 : ${FINN_XILINX_VERSION="2024.2"}
 # : ${VITIS_PATH="/mnt/sda1/Xilinx/Vitis/2024.2"}
 
@@ -237,7 +237,7 @@ if [ ! -z "$FINN_XILINX_PATH" ];then
     year=$((10#$year))
     minor=$((10#$minor))
 
-    if (( year > 25 )) || { (( year == 25 )) && (( minor > 2 )); }; then
+    if (( year > 26 )) || { (( year == 26 )) && (( minor > 2 )); }; then
       VIVADO_PATH="$FINN_XILINX_PATH/$FINN_XILINX_VERSION/Vivado"
       VITIS_PATH="$FINN_XILINX_PATH/$FINN_XILINX_VERSION/Vitis"
       HLS_PATH="$FINN_XILINX_PATH/$FINN_XILINX_VERSION/Vitis"
@@ -249,6 +249,10 @@ if [ ! -z "$FINN_XILINX_PATH" ];then
   else
     echo "FINN_XILINX_VERSION ($FINN_XILINX_VERSION) is not in the correct format (YYYY.1 or YYYY.2)"
   fi
+  VIVADO_PATH="$FINN_XILINX_PATH/Vivado/2024.2"
+  VITIS_PATH="$FINN_XILINX_PATH/Vitis/2024.2"
+  HLS_PATH="$FINN_XILINX_PATH/Vitis_HLS/2024.2"
+  echo "Using FINN_XILINX_VERSION $FINN_XILINX_VERSION, setting Vivado path to $VIVADO_PATH, Vitis path to $VITIS_PATH and HLS path to $HLS_PATH"
   DOCKER_EXEC+="-v $FINN_XILINX_PATH:$FINN_XILINX_PATH "
   if [ -d "$VIVADO_PATH" ];then
     DOCKER_EXEC+="-e "XILINX_VIVADO=$VIVADO_PATH" "
