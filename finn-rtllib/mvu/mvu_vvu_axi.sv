@@ -61,6 +61,12 @@ module mvu_vvu_axi #(
 
 	bit PUMPED_COMPUTE = 0, // Not meaningful for SIMD < 2, which will error out.
 	                        // Best utilization for even values.
+    bit POW2_WEIGHTS = 0,   // Use shift-based compute kernel (mvu_bitshift).
+                        // Requires IS_MVU=1. Weight encoding:
+                        //   w[WEIGHT_WIDTH-1]     = sign (0=add, 1=subtract)
+                        //   w[WEIGHT_WIDTH-2 : 0] = right-shift exponent
+                        //   exp == '1 (all-ones)  = zero-weight code
+                        // Incompatible with PUMPED_COMPUTE.
 	bit FORCE_BEHAVIORAL = 0,
 	bit M_REG_LUT = 1,
 
@@ -117,6 +123,14 @@ module mvu_vvu_axi #(
 				$error("Segment length of %0d exceeds chain length of %0d", SEGMENTLEN, (SIMD+2)/3);
 				$finish;
 			end
+		end
+        if(POW2_WEIGHTS && PUMPED_COMPUTE) begin
+			$error("POW2_WEIGHTS is incompatible with PUMPED_COMPUTE.");
+			$finish;
+		end
+		if(POW2_WEIGHTS && !IS_MVU) begin
+			$error("POW2_WEIGHTS is only supported for MVU (IS_MVU=1).");
+			$finish;
 		end
 		if(!IS_MVU) begin
 			if(VERSION != 3) begin
@@ -325,6 +339,19 @@ module mvu_vvu_axi #(
 				.vld(dsp_vld), .p(dsp_p)
 			);
 		end : genINT8
+        else if(POW2_WEIGHTS) begin : genPow2
+			initial $info("Using power-of-two right-shift kernel (mvu_bitshift) for %0dx%0d.",
+			              WEIGHT_WIDTH, ACTIVATION_WIDTH);
+			mvu_bitshift #(
+				.PE(PE), .SIMD(DSP_SIMD),
+				.WEIGHT_WIDTH(WEIGHT_WIDTH), .ACTIVATION_WIDTH(ACTIVATION_WIDTH), .ACCU_WIDTH(ACCU_WIDTH),
+				.SIGNED_ACTIVATIONS(SIGNED_ACTIVATIONS)
+			) core (
+				.clk(ap_clk), .rst, .en('1),
+				.last(dsp_last), .zero(dsp_zero), .w(dsp_w), .a(dsp_a),
+				.vld(dsp_vld), .p(dsp_p)
+			);
+        end : genPow2
 		else begin : genSoftVec
 			mvu #(
 				.VERSION(VERSION),
@@ -343,8 +370,9 @@ module mvu_vvu_axi #(
 
 	if(1) begin : blkOutput
 		localparam int unsigned  CORE_PIPELINE_DEPTH =
-			VERSION == 3? 3 + (SEGMENTLEN == 0? 0 : ((SIMD+2)/3 -1)/SEGMENTLEN) :
-			/* else */    3 + $clog2(SIMD+1) + (SIMD == 1);
+			POW2_WEIGHTS  ? 4 + $clog2(SIMD) + (SIMD == 1) :
+			VERSION == 3  ? 3 + (SEGMENTLEN == 0? 0 : ((SIMD+2)/3 -1)/SEGMENTLEN) :
+			/* else */      3 + $clog2(SIMD+1) + (SIMD == 1);
 
 		// This is conservative and could be divided by a guaranteed minimum output interval, e.g. MW/SIMD.
 		localparam int unsigned  MAX_IN_FLIGHT = CORE_PIPELINE_DEPTH;
